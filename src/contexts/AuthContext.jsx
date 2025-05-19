@@ -1,4 +1,7 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
+    import { supabase } from '@/lib/supabaseClient';
+    import { useToast } from '@/components/ui/use-toast';
 
     const AuthContext = createContext();
 
@@ -6,66 +9,80 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
     const AuthProvider = ({ children }) => {
       const [user, setUser] = useState(null);
+      const [session, setSession] = useState(null);
       const [loading, setLoading] = useState(true);
+      const { toast } = useToast();
 
       useEffect(() => {
-        const storedUser = localStorage.getItem('eventPlannerUser');
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
-        setLoading(false);
+        const fetchSession = async () => {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+          setLoading(false);
+        };
+
+        fetchSession();
+
+        const { data: authListener } = supabase.auth.onAuthStateChange(
+          async (event, currentSession) => {
+            setSession(currentSession);
+            setUser(currentSession?.user ?? null);
+            setLoading(false);
+          }
+        );
+
+        return () => {
+          authListener?.subscription?.unsubscribe();
+        };
       }, []);
 
-      const login = (email, password) => {
+      const login = async (email, password) => {
         setLoading(true);
-        const users = JSON.parse(localStorage.getItem('eventPlannerUsers')) || [];
-        const foundUser = users.find(u => u.email === email && u.password === password); 
-
-        if (foundUser) {
-          const userToStore = { email: foundUser.email, id: foundUser.id };
-          localStorage.setItem('eventPlannerUser', JSON.stringify(userToStore));
-          setUser(userToStore);
-          setLoading(false);
-          return true;
-        } else {
-          setLoading(false);
-          return false;
-        }
-      };
-
-      const signup = (email, password) => {
-        setLoading(true);
-        let users = JSON.parse(localStorage.getItem('eventPlannerUsers')) || [];
-        if (users.find(u => u.email === email)) {
-          setLoading(false);
-          return false;
-        }
-        
-        const newUser = { id: Date.now().toString(), email, password }; 
-        users.push(newUser);
-        localStorage.setItem('eventPlannerUsers', JSON.stringify(users));
-        
-        const userToStore = { email: newUser.email, id: newUser.id };
-        localStorage.setItem('eventPlannerUser', JSON.stringify(userToStore));
-        setUser(userToStore);
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         setLoading(false);
+        if (error) {
+          toast({ title: "Login Failed", description: error.message, variant: "destructive" });
+          return false;
+        }
+        toast({ title: "Login Successful", description: "Welcome back!", variant: "default" });
         return true;
       };
 
-      const logout = () => {
-        localStorage.removeItem('eventPlannerUser');
-        setUser(null);
+      const signup = async (email, password) => {
+        setLoading(true);
+        const { error } = await supabase.auth.signUp({ email, password });
+        setLoading(false);
+        if (error) {
+          toast({ title: "Signup Failed", description: error.message, variant: "destructive" });
+          return false;
+        }
+        toast({ title: "Signup Successful", description: "Please check your email to verify your account.", variant: "default" });
+        return true;
       };
 
+      const logout = async () => {
+        setLoading(true);
+        const { error } = await supabase.auth.signOut();
+        setLoading(false);
+        if (error) {
+          toast({ title: "Logout Failed", description: error.message, variant: "destructive" });
+          return;
+        }
+        setUser(null);
+        setSession(null);
+        toast({ title: "Logged Out", description: "You have been successfully logged out.", variant: "default"});
+      };
+      
       const value = {
         user,
+        session,
         loading,
         login,
         signup,
         logout,
       };
 
-      return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+      return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
     };
 
     export default AuthProvider;
