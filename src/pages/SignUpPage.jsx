@@ -19,7 +19,7 @@ import {
   emailValidator,
   passwordValidator,
   confirmedValidator,
-} from "@/utils/validators";
+} from "../../utils/validators";
 
 const SignUpPage = () => {
   const [email, setEmail] = useState("");

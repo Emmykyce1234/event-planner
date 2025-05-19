@@ -15,7 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { LogIn, Mail, Lock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { emailValidator, passwordValidator } from "@/utils/validators";
+import { emailValidator, passwordValidator } from "../../utils/validators";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
